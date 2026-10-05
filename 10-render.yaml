@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: bhavishyavani-kundli
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: KUNDLI_API_KEY
+        sync: false
+      - key: SOURCE_URL
+        sync: false
