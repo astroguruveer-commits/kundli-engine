@@ -13,3 +13,5 @@ Deploy on Render free: new Web Service from this repo (render.yaml, docker), set
 Weekday (vaar): default vaar_mode="sunrise" (Vedic day starts at sunrise); vaar_mode="calendar" gives civil midnight-to-midnight. Both values are always returned (vaar_calendar, vaar_vedic).
 
 Known limits: ashtakoota tables fitted to 4 reference pairs only; avastha/dignity fitted to 3 charts; not compared with Prokerala; sade sati not built; dashakoota partial (parked).
+
+Panchang end times: tithi/nakshatra/yoga/karana each return _start and _end (local ISO), checked against JPL DE421 (tithi/karana exact to seconds; nakshatra/yoga within ~1-2 min of the exact boundary). Dasha has 3 levels (maha > antar > pratyantar). Planet Hindi names/abbreviations in planets[*].name_hi/abbr_hi and labels.
