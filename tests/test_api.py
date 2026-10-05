@@ -21,3 +21,13 @@ r=c.post("/v1/match",json={"boy":daksh,"girl":dri},headers=H); assert r.json()["
 r=c.post("/v1/kundli.pdf",json=veer,headers=H); assert r.status_code==200 and r.content[:4]==b"%PDF",r.status_code
 open("/tmp/svc.pdf","wb").write(r.content)
 print("api ok", len(r.content),"bytes pdf")
+# vaar mode: pre-sunrise birth. 2000-07-15 04:00 Lucknow: calendar day Shanivar, Vedic (sunrise) day Shukravar. Default = sunrise.
+pre={**veer,"time":"04:00"}
+a=c.post("/v1/kundli",json=pre,headers=H).json()["panchang"]; assert a["vaar"]=="Shukravar" and a["vaar_mode"]=="sunrise" and a["vaar_calendar"]=="Shanivar",a
+b=c.post("/v1/kundli",json={**pre,"vaar_mode":"calendar"},headers=H).json()["panchang"]; assert b["vaar"]=="Shanivar" and b["vaar_vedic"]=="Shukravar",b
+assert c.post("/v1/panchang",json=pre,headers=H).json()["vaar"]=="Shukravar"
+assert c.post("/v1/panchang",json={**pre,"vaar_mode":"calendar"},headers=H).json()["vaar"]=="Shanivar"
+m=c.post("/v1/kundli",json=veer,headers=H).json()["panchang"]; assert m["vaar"]==m["vaar_calendar"]=="Shanivar"   # after sunrise: same
+assert c.post("/v1/kundli",json={**pre,"vaar_mode":"x"},headers=H).status_code==422
+assert c.post("/v1/kundli.pdf",json=pre,headers=H).status_code==200
+print("vaar ok")
