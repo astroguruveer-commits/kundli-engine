@@ -30,6 +30,7 @@ class Birth(BaseModel):
     name: str = ""
     gender: str = ""
     place: str = ""
+    lang: Literal["hi","en"] = "hi"                         # PDF language (JSON always carries English + *_hi names)
     vaar_mode: Literal["sunrise","calendar"] = "sunrise"   # weekday: Vedic sunrise-to-sunrise (default) or civil midnight-to-midnight
 
 ABB_HI = {"Sun":"सू","Moon":"चं","Mars":"मं","Mercury":"बु","Jupiter":"गु","Venus":"शु","Saturn":"श","Rahu":"रा","Ketu":"के"}
@@ -128,7 +129,7 @@ def kundli_pdf(b: Birth, x_api_key: Optional[str] = Header(None)):
     auth(x_api_key)
     dt, off, tzname, _ = _resolve(b)
     def run():
-        h = R.build(b.name or "जातक", {"male": "पुरुष", "female": "महिला"}.get(b.gender.lower(), b.gender), dt, b.place or f"{b.lat}, {b.lon}", b.lat, b.lon, tz=off, now=datetime.now(), vaar_mode=b.vaar_mode)
+        h = R.build(b.name or ("जातक" if b.lang == "hi" else "Native"), {"male": "पुरुष", "female": "महिला"}.get(b.gender.lower(), b.gender) if b.lang=="hi" else b.gender.capitalize(), dt, b.place or f"{b.lat}, {b.lon}", b.lat, b.lon, tz=off, now=datetime.now(), vaar_mode=b.vaar_mode, lang=b.lang)
         return R.to_pdf(h)
     pdf = cached("pdf|" + b.model_dump_json() + _date.today().isoformat(), run)
     return Response(pdf, media_type="application/pdf", headers={"Content-Disposition": 'attachment; filename="kundli.pdf"'})
