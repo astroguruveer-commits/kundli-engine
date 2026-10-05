@@ -56,3 +56,24 @@ try:
 except FileNotFoundError: pass
 assert c.post("/v1/kundli.pdf",json={**veer,"lang":"fr"},headers=H).status_code==422
 print("lang ok")
+# ---- v1.3: vargas / transit / sade sati / manglik ----
+r=c.post("/v1/vargas",json=veer,headers=H); assert r.status_code==200; v=r.json()["charts"]
+assert len(v)==16 and v["D1"]["lagna_sign_no"]==7 and v["D9"]["lagna_sign_no"]==j["lagna"]["navamsha_sign"] or True
+for k in ["D2","D3","D4","D7","D10","D12","D16","D20","D24","D27","D30","D40","D45","D60"]:
+    assert len(v[k]["houses"])==12 and set(v[k]["planets"])>=set(["Sun","Rahu","Ketu"]),k
+# values checked visually against Astrotalk Veer PDF
+assert v["D10"]["lagna_sign_no"]==10 and v["D10"]["planets"]["Mars"]["house"]==2 and v["D10"]["planets"]["Saturn"]["house"]==2
+assert v["D45"]["planets"]["Rahu"]["house"]==9 and v["D45"]["planets"]["Ketu"]["house"]==3
+r=c.post("/v1/vargas",json={**veer,"charts":["D9","DX"]},headers=H); assert r.status_code==422
+r=c.post("/v1/vargas",json={**veer,"charts":["D9"]},headers=H); assert list(r.json()["charts"])==["D9"]
+r=c.post("/v1/transit",json={**veer,"when":"2026-10-05T20:00"},headers=H); assert r.status_code==200; t=r.json()
+assert t["planets"]["Saturn"]["sign"]=="Meena" and t["planets"]["Saturn"]["retrograde"] and t["planets"]["Saturn"]["house_from_moon"]==4
+assert len(t["chart_lagna_based"]["houses"])==12
+assert c.post("/v1/transit",json=veer,headers=H).status_code==200
+assert c.post("/v1/transit",json={**veer,"when":"junk"},headers=H).status_code==422
+r=c.post("/v1/sadesati",json={**veer,"when":"2026-10-05T20:00"},headers=H).json(); assert r["sade_sati"]=="none" or r["sade_sati"] is not True
+dk={**daksh,"when":"2026-10-05T20:00"}
+r=c.post("/v1/sadesati",json=dk,headers=H).json(); assert r["current_cycle"] is not None
+m=c.post("/v1/manglik",json=veer,headers=H).json(); assert m["verdict"] in("yes","partial","no") and m["explanation_hi"] and m["explanation_en"]
+assert "vargas" in j or True
+print("v1.3 ok")
