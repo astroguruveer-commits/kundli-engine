@@ -15,3 +15,5 @@ Weekday (vaar): default vaar_mode="sunrise" (Vedic day starts at sunrise); vaar_
 Known limits: ashtakoota tables fitted to 4 reference pairs only; avastha/dignity fitted to 3 charts; not compared with Prokerala; sade sati not built; dashakoota partial (parked).
 
 Panchang end times: tithi/nakshatra/yoga/karana each return _start and _end (local ISO), checked against JPL DE421 (tithi/karana exact to seconds; nakshatra/yoga within ~1-2 min of the exact boundary). Dasha has 3 levels (maha > antar > pratyantar). Planet Hindi names/abbreviations in planets[*].name_hi/abbr_hi and labels.
+
+PDF language: lang "hi" (default) or "en" on /v1/kundli.pdf; JSON always has English names plus *_hi.
