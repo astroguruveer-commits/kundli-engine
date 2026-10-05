@@ -10,4 +10,6 @@ Env: KUNDLI_API_KEY (required), SOURCE_URL.
 Run: pip install -r requirements.txt; uvicorn app:app. Test: python tests/test_api.py
 Deploy on Render free: new Web Service from this repo (render.yaml, docker), set the two env vars. Free tier sleeps when idle (~1 min cold start).
 
+Weekday (vaar): default vaar_mode="sunrise" (Vedic day starts at sunrise); vaar_mode="calendar" gives civil midnight-to-midnight. Both values are always returned (vaar_calendar, vaar_vedic).
+
 Known limits: ashtakoota tables fitted to 4 reference pairs only; avastha/dignity fitted to 3 charts; not compared with Prokerala; sade sati not built; dashakoota partial (parked).
