@@ -31,3 +31,17 @@ m=c.post("/v1/kundli",json=veer,headers=H).json()["panchang"]; assert m["vaar"]=
 assert c.post("/v1/kundli",json={**pre,"vaar_mode":"x"},headers=H).status_code==422
 assert c.post("/v1/kundli.pdf",json=pre,headers=H).status_code==200
 print("vaar ok")
+# v1.2: pratyantar, panchang end times, Hindi labels
+k=c.post("/v1/kundli",json=veer,headers=H).json()
+assert len(k["dasha"][0]["antar"][0]["pratyantar"])==9 and k["dasha"][2]["antar"][0]["pratyantar"][0]["lord"] in ("Moon","Mars","Rahu","Jupiter","Saturn","Mercury","Ketu","Venus","Sun")
+p=k["panchang"]; assert p["tithi_end"]=="2000-07-15T16:52:06" and p["tithi_start"]<veer["date"]+"T13:05"<p["tithi_end"], p
+assert p["nakshatra_end"].startswith("2000-07-16T11:4") and p["yoga_end"].startswith("2000-07-15T16:3") and p["karana_end"]==p["tithi_end"]   # karana ends with tithi half here
+assert k["planets"]["Sun"]["abbr_hi"]=="सू" and k["planets"]["Moon"]["name_hi"]=="चन्द्र" and k["labels"]["signs_hi"][0]
+pn=c.post("/v1/panchang",json=veer,headers=H).json(); assert pn["tithi_end"]==p["tithi_end"] and pn["nakshatra_hi"]=="पूर्वाषाढ़ा"
+# end times must bracket the birth time for every kind, across many random dates
+import random; random.seed(1)
+for _ in range(25):
+    b={"date":f"{random.randint(1950,2030)}-{random.randint(1,12):02d}-{random.randint(1,28):02d}","time":f"{random.randint(0,23):02d}:{random.randint(0,59):02d}","lat":random.uniform(8,35),"lon":random.uniform(68,95)}
+    q=c.post("/v1/panchang",json=b,headers=H).json(); t=b["date"]+"T"+b["time"]
+    for kd in ("tithi","nakshatra","yoga","karana"): assert q[kd+"_start"]<=t<=q[kd+"_end"] or abs(0)==1,(b,kd,q[kd+"_start"],q[kd+"_end"])
+print("v1.2 ok")
