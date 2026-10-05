@@ -45,3 +45,14 @@ for _ in range(25):
     q=c.post("/v1/panchang",json=b,headers=H).json(); t=b["date"]+"T"+b["time"]
     for kd in ("tithi","nakshatra","yoga","karana"): assert q[kd+"_start"]<=t<=q[kd+"_end"] or abs(0)==1,(b,kd,q[kd+"_start"],q[kd+"_end"])
 print("v1.2 ok")
+# lang
+for lg in ("hi","en"):
+    r=c.post("/v1/kundli.pdf",json={**veer,"lang":lg,"gender":"male"},headers=H); assert r.status_code==200 and r.content[:4]==b"%PDF"
+import subprocess
+open("/tmp/_en.pdf","wb").write(c.post("/v1/kundli.pdf",json={**veer,"lang":"en"},headers=H).content)
+try:
+    t=subprocess.run(["pdftotext","/tmp/_en.pdf","-"],capture_output=True,text=True).stdout
+    assert "Planetary positions" in t and "Pratyantar" in t and not any("\u0900"<=ch<="\u097f" for ch in t)
+except FileNotFoundError: pass
+assert c.post("/v1/kundli.pdf",json={**veer,"lang":"fr"},headers=H).status_code==422
+print("lang ok")
