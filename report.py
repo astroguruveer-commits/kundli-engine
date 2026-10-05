@@ -19,9 +19,9 @@ def chart_svg(lagna_sign, planet_signs, title):
     if title=="D1": box(200,28,"लग्न","font-size:10px;color:#555")
     o.append('</div>'); return "".join(o)
 def dstr(d,birth): return astrotalk_date(d,birth).strftime("%d %b %Y")
-def build(name,gender,dt,place,lat,lon,tz=5.5,now=None):
+def build(name,gender,dt,place,lat,lon,tz=5.5,now=None,vaar_mode="sunrise"):
     now=now or datetime.now()
-    r=compute(dt,tz,lat,lon); pn=pan_at(dt,tz,lat,lon); P=r["planets"]; L=r["lagna"]
+    r=compute(dt,tz,lat,lon); pn=dict(pan_at(dt,tz,lat,lon)); pn["vaar"]=pn["vaar_vedic"] if vaar_mode=="sunrise" else pn["vaar"]; P=r["planets"]; L=r["lagna"]
     rows=[("लग्न",HI_SIGN[L["sign_no"]-1],HI_NAK_MAP[L["nakshatra"]],f'{L["deg"]}° {L["min"]}′ {int(L["sec"])}″',"1","","—","—")]
     for p in ["Sun","Moon","Mercury","Venus","Mars","Jupiter","Saturn","Rahu","Ketu"]:
         o=P[p]; vak="हाँ" if "vakri" in o["status"] else "नहीं"
