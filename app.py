@@ -32,6 +32,8 @@ class Birth(BaseModel):
     place: str = ""
     vaar_mode: Literal["sunrise","calendar"] = "sunrise"   # weekday: Vedic sunrise-to-sunrise (default) or civil midnight-to-midnight
 
+ABB_HI = {"Sun":"सू","Moon":"चं","Mars":"मं","Mercury":"बु","Jupiter":"गु","Venus":"शु","Saturn":"श","Rahu":"रा","Ketu":"के"}
+
 def _resolve(b: Birth):
     try:
         d = _date.fromisoformat(b.date); hh, mm = b.time.split(":")[:2]; dt = datetime.combine(d, _time(int(hh), int(mm)))
@@ -59,19 +61,20 @@ def _chart(b: Birth, now: Optional[datetime] = None):
     cd = K.current_dasha(r["dasha"], now or datetime.now())
     planets = {}
     for p, o in r["planets"].items():
-        planets[p] = {"sign": o["sign"], "sign_hi": L.HI_SIGN[o["sign_no"] - 1], "sign_no": o["sign_no"], "deg": o["deg"], "min": o["min"], "sec": o["sec"],
+        planets[p] = {"name_hi": L.HI_PLANET[p], "abbr_hi": ABB_HI[p], "sign": o["sign"], "sign_hi": L.HI_SIGN[o["sign_no"] - 1], "sign_no": o["sign_no"], "deg": o["deg"], "min": o["min"], "sec": o["sec"],
                       "longitude": o["lon"], "nakshatra": o["nakshatra"], "nakshatra_hi": L.HI_NAK_MAP[o["nakshatra"]], "pada": o["pada"], "house": o["house"],
                       "retrograde": "vakri" in o["status"], "avastha": L.avastha(o["lon"]), "avastha_hi": L.HI_AV[L.avastha(o["lon"])],
                       "dignity": L.sthiti(p, o["lon"]), "dignity_hi": L.HI_ST[L.sthiti(p, o["lon"])], "navamsha_sign": o["navamsha_sign"], "navamsha_sign_no": o["navamsha_sign_no"]}
     lg = r["lagna"]
     dasha = [{"maha": m, "start": K.astrotalk_date(s, dt).isoformat(), "end": K.astrotalk_date(e, dt).isoformat(),
-              "antar": [{"lord": a[0], "start": K.astrotalk_date(a[1], dt).isoformat(), "end": K.astrotalk_date(a[2], dt).isoformat()} for a in ant]} for m, s, e, ant in r["dasha"]]
+              "antar": [{"lord": a[0], "start": K.astrotalk_date(a[1], dt).isoformat(), "end": K.astrotalk_date(a[2], dt).isoformat(), "pratyantar": [{"lord": q[0], "start": K.astrotalk_date(q[1], dt).isoformat(), "end": K.astrotalk_date(q[2], dt).isoformat()} for q in a[3]]} for a in ant]} for m, s, e, ant in r["dasha"]]
     cur = {k: {"lord": v[0], "start": K.astrotalk_date(v[1], dt).isoformat(), "end": K.astrotalk_date(v[2], dt).isoformat()} for k, v in cd.items()} if cd else None
     return {"input": {"local": dt.isoformat(), "tz": tzname, "utc_offset_hours": off, "ambiguous_local_time": amb},
             "settings": {"ayanamsha": "lahiri", "ayanamsha_deg": r["ayanamsha"], "node": "mean", "houses": "whole-sign", "dasha_year_days": K.YEAR_DAYS, "dasha_date_display": "astrotalk-style (boundary minus birth clock time)"},
             "lagna": {"sign": lg["sign"], "sign_hi": L.HI_SIGN[lg["sign_no"] - 1], "deg": lg["deg"], "min": lg["min"], "sec": lg["sec"], "longitude": lg["lon"], "nakshatra": lg["nakshatra"], "nakshatra_hi": L.HI_NAK_MAP[lg["nakshatra"]], "navamsha_sign": r["navamsha_lagna"]},
+            "labels": {"planets": {p: {"hi": L.HI_PLANET[p], "abbr_hi": ABB_HI[p]} for p in ABB_HI}, "signs_hi": L.HI_SIGN},
             "planets": planets, "dasha": dasha, "current_dasha": cur,
-            "panchang": {"vaar": pn["vaar"], "vaar_mode": b.vaar_mode, "vaar_calendar": pn["vaar_calendar"], "vaar_vedic": pn["vaar_vedic"], "tithi": pn["tithi"], "tithi_hi": L.hi_tithi(pn["tithi"]), "nakshatra": pn["nakshatra"], "yoga": pn["yoga"], "karana": pn["karana"],
+            "panchang": {"vaar": pn["vaar"], "vaar_mode": b.vaar_mode, "vaar_calendar": pn["vaar_calendar"], "vaar_vedic": pn["vaar_vedic"], "tithi_start": pn["tithi_start"].isoformat(), "tithi_end": pn["tithi_end"].isoformat(), "nakshatra_start": pn["nakshatra_start"].isoformat(), "nakshatra_end": pn["nakshatra_end"].isoformat(), "yoga_start": pn["yoga_start"].isoformat(), "yoga_end": pn["yoga_end"].isoformat(), "karana_start": pn["karana_start"].isoformat(), "karana_end": pn["karana_end"].isoformat(), "tithi": pn["tithi"], "tithi_hi": L.hi_tithi(pn["tithi"]), "nakshatra": pn["nakshatra"], "nakshatra_hi": L.HI_NAK_MAP[pn["nakshatra"]], "yoga": pn["yoga"], "yoga_hi": L.HI_YOGA_MAP[pn["yoga"]], "karana": pn["karana"], "karana_hi": L.HI_KARANA[pn["karana"]],
                          "sunrise": pn["sunrise"].isoformat() if pn["sunrise"] else None, "sunset": pn["sunset"].isoformat() if pn["sunset"] else None},
             "doshas": {"manglik": L.manglik(r), "kaalsarp": L.kaalsarp(r)}}, r, dt, off
 
@@ -102,7 +105,7 @@ def panchang_ep(b: Birth, x_api_key: Optional[str] = Header(None)):
     dt, off, tzname, _ = _resolve(b); pn = P.at(dt, off, b.lat, b.lon)
     pn["vaar_calendar"] = pn["vaar"]; pn["vaar_mode"] = b.vaar_mode
     if b.vaar_mode == "sunrise": pn["vaar"] = pn["vaar_vedic"]
-    return {"local": dt.isoformat(), "tz": tzname, **{k: (v.isoformat() if isinstance(v, datetime) else v) for k, v in pn.items()}, "tithi_hi": L.hi_tithi(pn["tithi"])}
+    return {"local": dt.isoformat(), "tz": tzname, **{k: (v.isoformat() if isinstance(v, datetime) else v) for k, v in pn.items()}, "tithi_hi": L.hi_tithi(pn["tithi"]), "nakshatra_hi": L.HI_NAK_MAP[pn["nakshatra"]], "yoga_hi": L.HI_YOGA_MAP[pn["yoga"]], "karana_hi": L.HI_KARANA[pn["karana"]]}
 
 class MatchReq(BaseModel):
     boy: Birth
