@@ -3,7 +3,7 @@ Run: uvicorn app:app --host 0.0.0.0 --port $PORT   Env: KUNDLI_API_KEY (required
 import os, hmac, hashlib, json, time
 from collections import OrderedDict
 from datetime import datetime, date as _date, time as _time
-from typing import Optional
+from typing import Literal, Optional
 from fastapi import FastAPI, Header, HTTPException, Response
 from pydantic import BaseModel, Field
 import kundli as K, panchang as P, matching as M, labels as L, tzutil as T, report as R
@@ -30,6 +30,7 @@ class Birth(BaseModel):
     name: str = ""
     gender: str = ""
     place: str = ""
+    vaar_mode: Literal["sunrise","calendar"] = "sunrise"   # weekday: Vedic sunrise-to-sunrise (default) or civil midnight-to-midnight
 
 def _resolve(b: Birth):
     try:
@@ -53,6 +54,8 @@ def _chart(b: Birth, now: Optional[datetime] = None):
     dt, off, tzname, amb = _resolve(b)
     r = K.compute(dt, off, b.lat, b.lon, true_node=False)
     pn = P.at(dt, off, b.lat, b.lon)
+    pn["vaar_calendar"] = pn["vaar"]
+    if b.vaar_mode == "sunrise": pn["vaar"] = pn["vaar_vedic"]
     cd = K.current_dasha(r["dasha"], now or datetime.now())
     planets = {}
     for p, o in r["planets"].items():
@@ -68,7 +71,7 @@ def _chart(b: Birth, now: Optional[datetime] = None):
             "settings": {"ayanamsha": "lahiri", "ayanamsha_deg": r["ayanamsha"], "node": "mean", "houses": "whole-sign", "dasha_year_days": K.YEAR_DAYS, "dasha_date_display": "astrotalk-style (boundary minus birth clock time)"},
             "lagna": {"sign": lg["sign"], "sign_hi": L.HI_SIGN[lg["sign_no"] - 1], "deg": lg["deg"], "min": lg["min"], "sec": lg["sec"], "longitude": lg["lon"], "nakshatra": lg["nakshatra"], "nakshatra_hi": L.HI_NAK_MAP[lg["nakshatra"]], "navamsha_sign": r["navamsha_lagna"]},
             "planets": planets, "dasha": dasha, "current_dasha": cur,
-            "panchang": {"vaar": pn["vaar"], "vaar_vedic": pn["vaar_vedic"], "tithi": pn["tithi"], "tithi_hi": L.hi_tithi(pn["tithi"]), "nakshatra": pn["nakshatra"], "yoga": pn["yoga"], "karana": pn["karana"],
+            "panchang": {"vaar": pn["vaar"], "vaar_mode": b.vaar_mode, "vaar_calendar": pn["vaar_calendar"], "vaar_vedic": pn["vaar_vedic"], "tithi": pn["tithi"], "tithi_hi": L.hi_tithi(pn["tithi"]), "nakshatra": pn["nakshatra"], "yoga": pn["yoga"], "karana": pn["karana"],
                          "sunrise": pn["sunrise"].isoformat() if pn["sunrise"] else None, "sunset": pn["sunset"].isoformat() if pn["sunset"] else None},
             "doshas": {"manglik": L.manglik(r), "kaalsarp": L.kaalsarp(r)}}, r, dt, off
 
@@ -97,6 +100,8 @@ def kundli(b: Birth, x_api_key: Optional[str] = Header(None)):
 def panchang_ep(b: Birth, x_api_key: Optional[str] = Header(None)):
     auth(x_api_key)
     dt, off, tzname, _ = _resolve(b); pn = P.at(dt, off, b.lat, b.lon)
+    pn["vaar_calendar"] = pn["vaar"]; pn["vaar_mode"] = b.vaar_mode
+    if b.vaar_mode == "sunrise": pn["vaar"] = pn["vaar_vedic"]
     return {"local": dt.isoformat(), "tz": tzname, **{k: (v.isoformat() if isinstance(v, datetime) else v) for k, v in pn.items()}, "tithi_hi": L.hi_tithi(pn["tithi"])}
 
 class MatchReq(BaseModel):
@@ -120,7 +125,7 @@ def kundli_pdf(b: Birth, x_api_key: Optional[str] = Header(None)):
     auth(x_api_key)
     dt, off, tzname, _ = _resolve(b)
     def run():
-        h = R.build(b.name or "जातक", {"male": "पुरुष", "female": "महिला"}.get(b.gender.lower(), b.gender), dt, b.place or f"{b.lat}, {b.lon}", b.lat, b.lon, tz=off, now=datetime.now())
+        h = R.build(b.name or "जातक", {"male": "पुरुष", "female": "महिला"}.get(b.gender.lower(), b.gender), dt, b.place or f"{b.lat}, {b.lon}", b.lat, b.lon, tz=off, now=datetime.now(), vaar_mode=b.vaar_mode)
         return R.to_pdf(h)
     pdf = cached("pdf|" + b.model_dump_json() + _date.today().isoformat(), run)
     return Response(pdf, media_type="application/pdf", headers={"Content-Disposition": 'attachment; filename="kundli.pdf"'})
