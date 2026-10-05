@@ -6,9 +6,9 @@ from datetime import datetime, date as _date, time as _time
 from typing import Literal, Optional
 from fastapi import FastAPI, Header, HTTPException, Response
 from pydantic import BaseModel, Field
-import kundli as K, panchang as P, matching as M, labels as L, tzutil as T, report as R
+import kundli as K, panchang as P, matching as M, labels as L, tzutil as T, report as R, extras as X
 
-app = FastAPI(title="Bhavishyavani kundli service", version="0.1")
+app = FastAPI(title="Bhavishyavani kundli service", version="1.3")
 API_KEY = os.environ.get("KUNDLI_API_KEY", "")
 SOURCE_URL = os.environ.get("SOURCE_URL", "set SOURCE_URL to the public repository")
 _cache: "OrderedDict[str, bytes]" = OrderedDict(); CACHE_MAX = 500
@@ -77,7 +77,7 @@ def _chart(b: Birth, now: Optional[datetime] = None):
             "planets": planets, "dasha": dasha, "current_dasha": cur,
             "panchang": {"vaar": pn["vaar"], "vaar_mode": b.vaar_mode, "vaar_calendar": pn["vaar_calendar"], "vaar_vedic": pn["vaar_vedic"], "tithi_start": pn["tithi_start"].isoformat(), "tithi_end": pn["tithi_end"].isoformat(), "nakshatra_start": pn["nakshatra_start"].isoformat(), "nakshatra_end": pn["nakshatra_end"].isoformat(), "yoga_start": pn["yoga_start"].isoformat(), "yoga_end": pn["yoga_end"].isoformat(), "karana_start": pn["karana_start"].isoformat(), "karana_end": pn["karana_end"].isoformat(), "tithi": pn["tithi"], "tithi_hi": L.hi_tithi(pn["tithi"]), "nakshatra": pn["nakshatra"], "nakshatra_hi": L.HI_NAK_MAP[pn["nakshatra"]], "yoga": pn["yoga"], "yoga_hi": L.HI_YOGA_MAP[pn["yoga"]], "karana": pn["karana"], "karana_hi": L.HI_KARANA[pn["karana"]],
                          "sunrise": pn["sunrise"].isoformat() if pn["sunrise"] else None, "sunset": pn["sunset"].isoformat() if pn["sunset"] else None},
-            "doshas": {"manglik": L.manglik(r), "kaalsarp": L.kaalsarp(r)}}, r, dt, off
+            "doshas": {"manglik": L.manglik(r), "kaalsarp": L.kaalsarp(r), "manglik_report": X.manglik_report(r)}, "vargas": X.vargas(r)}, r, dt, off
 
 def cached(key: str, fn):
     k = hashlib.sha256(key.encode()).hexdigest()
@@ -133,3 +133,55 @@ def kundli_pdf(b: Birth, x_api_key: Optional[str] = Header(None)):
         return R.to_pdf(h)
     pdf = cached("pdf|" + b.model_dump_json() + _date.today().isoformat(), run)
     return Response(pdf, media_type="application/pdf", headers={"Content-Disposition": 'attachment; filename="kundli.pdf"'})
+
+
+class WhenReq(Birth):
+    when: Optional[str] = Field(None, examples=["2026-10-05T20:00"])   # local civil time at the birth-place UTC offset; default = now
+
+class ChartsReq(Birth):
+    charts: Optional[list[str]] = None   # subset e.g. ["D9","D10"]; default all
+
+def _natal(b: Birth):
+    dt, off, tzname, _ = _resolve(b)
+    return K.compute(dt, off, b.lat, b.lon, true_node=False), dt, off, tzname
+
+def _when(w: Optional[str], off: float) -> datetime:
+    """`when` is local civil time at the birth place (same utc offset as birth). Default: now at that offset, to the minute."""
+    if w is None:
+        from datetime import timezone, timedelta
+        return datetime.now(timezone.utc).replace(tzinfo=None, second=0, microsecond=0) + timedelta(hours=off)
+    try: x = datetime.fromisoformat(w)
+    except Exception: raise HTTPException(422, "when must be ISO local datetime, e.g. 2026-10-05T20:00")
+    if x.tzinfo is not None: raise HTTPException(422, "when must not carry a timezone offset")
+    if not (1900 <= x.year <= 2100): raise HTTPException(422, "when year must be 1900-2100")
+    return x.replace(second=0, microsecond=0)
+
+def _out(o): return Response(json.dumps(o, default=_j, ensure_ascii=False).encode(), media_type="application/json")
+
+@app.post("/v1/vargas")
+def vargas_ep(b: ChartsReq, x_api_key: Optional[str] = Header(None)):
+    auth(x_api_key)
+    r, dt, off, tzname = _natal(b); v = X.vargas(r)
+    if b.charts:
+        bad = [c for c in b.charts if c not in v]
+        if bad: raise HTTPException(422, f"unknown charts {bad}; available {list(v)}")
+        v = {c: v[c] for c in b.charts}
+    return _out({"input": {"local": dt.isoformat(), "tz": tzname}, "rule": "Parashari (BPHS); D45 continuous from Aries (matches Astrotalk)", "charts": v})
+
+@app.post("/v1/transit")
+def transit_ep(b: WhenReq, x_api_key: Optional[str] = Header(None)):
+    auth(x_api_key)
+    r, dt, off, tzname = _natal(b); w = _when(b.when, off)
+    return _out(X.transit(r, w, off))
+
+@app.post("/v1/sadesati")
+def sadesati_ep(b: WhenReq, x_api_key: Optional[str] = Header(None)):
+    auth(x_api_key)
+    r, dt, off, tzname = _natal(b); w = _when(b.when, off)
+    return _out(X.sade_sati(r, w, off))
+
+@app.post("/v1/manglik")
+def manglik_ep(b: Birth, x_api_key: Optional[str] = Header(None)):
+    auth(x_api_key)
+    r, dt, off, tzname = _natal(b)
+    return _out(X.manglik_report(r))
